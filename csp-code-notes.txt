@@ -1,0 +1,11 @@
+Notes on my csp code
+
+csp-1
+- job is to play a simple triad, choosing random realizations
+
+- first bt exp
+- recurse down to a tree of random values to depth 4
+
+- let's have it keep trying values until it gets a 4
+
+- hanging in select-var

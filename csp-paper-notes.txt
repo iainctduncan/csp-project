@@ -1,0 +1,46 @@
+CPS/search notes
+
+Notes from Ghaderi paper, Lecture-04-Backtracking-Search.pdf
+
+in backtracking search
+- state is represented as a vector of possible feature values
+- we have k-features (variables) 
+- each feature takes a value from the domain of possible variables for the value
+- the problem is to search for the set of values for the features such 
+  the constraints are satisfied
+
+Formally, CSP problem has
+- a set of variables, V1...Vn
+- for each variable, a domain of values: Dom[Vi]  
+- a set of constraints, C1.. Cm
+
+- a constraint, C, has a "scope", a set of variables it is over
+- is a boolean function that maps assignments to these variables to #t/#f
+- ex. C(V1=a, V2=b, V4=c) = True
+
+Arity of constraints
+- unary  C(X): X > 5
+- binary C(X,Y): X + Y < 7
+
+- how we pick the PickNextUnassignedVariable has major impact
+  on performance
+
+Solving:
+- specialized version of depth first search
+- search through space of partial assignments
+- order in which we assign variables doesn't matter, eventually
+  they must all be assigned
+- if a constraint fails, we can reject all possible extensions of
+  the current partial assignment
+
+Constraint propagation
+- looking ahead in search at as yet unassigned values
+  to detect if any obvious failures have occured
+
+Forward Checking
+- extension of backtracking searcdh with modest amount of propogation/lookahead
+- when a variable is instantiated, we check all constraints that
+  have only one uninstantiated var remaining.
+  - for the remaining var, we check all vlaues, pruning those that fail
+    - we prune before recursing into the next depth, and we restore
+      pruned vars if the current level fails, before we return
