@@ -20,3 +20,9 @@
 (csp 'assign-if-valid 0 '(C . 1))
 (post "ASSIGNS:" (csp 'get :assignments))
 )
+
+(csp 'get :constraints-for-var)
+
+(csp 'get-applicable-constraints 0)
+
+

@@ -18,21 +18,64 @@
             :note-vars    '(0 1 2 3)
             ; assigned vals is a hash-table keyed by var name (or number)
             :assignments  (hash-table)  
-            ; constraints and domains are keyed by var name
-            :constraints  (hash-table)
-            ; domains becomes a hash on init
+            ; domains becomes a hash-table of domain val lists, keyed by var name
             :domains      #f
+            ; constraint registry, keyed by a gensym id
+            ; each entry is hash of pred, vars, id, applied
+            ; we can stash data we need for rewinding there too maybe?
+            :constraints  (hash-table)
+            ; registry of ids by var, keys are the var token, vals the list of constraints
+            :constraints-for-var  (hash-table)
             )))    
 
-    (define (get-var var-name)
-      (_ :assignments var-name))
-
-    (define (add-constraint c-sym vars)
-      ; add reference to the constraint for each var it is against
-      (dolist (v vars)
-        (let ((var-constraints (_ :constraints v)))
-          (if (not (member? c-sym var-constraints))
-            (set! (_ :constraints v) (cons c-sym (_ :constraints v)))))))
+    (define (add-constraint pred vars . args)
+      "add constraint to the two constraint registries"
+      (post "add-constraint, pred:" pred "vars:" vars)
+      ; add an ht record for the constraint keyed by gensym
+      (let* ((c-id (if (length args) (args 0) gensym))
+             (c-entry (hash-table
+                        :id         c-id
+                        :predicate  pred  ; could be symbol or fun
+                        :vars       vars
+                        :applied    #f)))
+        (set! (_ :constraints c-id) c-entry)
+        ; now add the constraint id to the registry keyed by vars
+        (dolist (v vars)
+          (let ((var-constraints (_ :constraints-for-var v)))
+            ;(post "  - var:" v "var-constraints:" var-constraints)
+            (cond
+              ; case first entry for this var: add initial list
+              ((or (not var-constraints) (null? var-constraints))  
+                ;(post "    - adding new list for var" v)
+                (set! (_ :constraints-for-var v) (list c-id)))
+              ; case var has entry, but this constraint not in it, add to list
+              ((not (member? c-id var-constraints))
+                ;(post "    - adding to existing c list for var" v)
+                (set! (_ :constraints-for-var v) (cons c-id (_ :constraints-for-var v))))
+              ; else nothing to do, constraint already in list for var
+              (else
+                ;(post " already there, noop")
+                (begin)))))
+        (post "   added id" c-id ":constraints-for-var now:" (_ :constraints-for-var)))
+    )
+  
+    
+    (define (get-applicable-constraints var)
+      "return all constraint ids for a var that don't depend on unassigned vars (excluding this var)"
+      (let* ((all-ids-for-var (_ :constraints-for-var var))
+             (noop (post "all-ids-for-var, var:" var "c-ids" all-ids-for-var)))
+        ; return true if constraint is not over unset vars 
+        (define (is-applicable? c-id)
+          (let rec-loop ((vars-over (_ :constraints c-id :vars)))
+            (cond
+              ((null? vars-over)  
+                #t)
+              ((and (not (eq? var (car vars-over))) 
+                    (not (_ :assignments (car vars-over))))  
+                #f)
+              (else 
+                (rec-loop (cdr vars-over))))))
+        (filter is-applicable? all-ids-for-var)))
 
     (define (check-constraints var val)
        "apply all constraints for a var, returning value if success, false otherwise"
@@ -82,6 +125,9 @@
     (define (get . args) 
       (apply _ args))
 
+    (define (get-var var-name)
+      (_ :assignments var-name))
+
     ; generic dispatch so any internal function can be called as (csp 'fun args ...)
     (lambda (msg . args)
       (apply (eval msg) args))))
@@ -89,13 +135,13 @@
 
 (define csp (make-csp))
 (csp 'init csp (hash-table 'tonic 'C  'tonality 'Major  'root 'I 'quality 'Maj7))
-(csp 'add-constraint 'is-tonic? '(tonic 0))
-(csp 'add-constraint 'above-oct-0? '(0))
+
+(csp 'add-constraint is-tonic? '(tonic 0) 'is-tonic)
+(csp 'add-constraint above-oct-0? '(0) 'above-oct)
+(csp 'add-constraint (make-all-diff '(0 1)) '(0 1) 'all-diff-0-1)
+
 
 ;********************************************************************************
-
-; variables to fill - notes is a vector of 4 notes
-(define notes (make-vector 4 #f))
 
 ; naive version that just returns the next empty slot in the variables vector
 (define (select-var csp notes)

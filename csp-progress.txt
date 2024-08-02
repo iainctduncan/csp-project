@@ -1,0 +1,10 @@
+progress:
+
+- object checks and assigns vals
+
+
+TODO:
+- select next var
+- select domain value to try? (could just iterate through them)
+
+- question how does it know to recheck constraints as vars are filled in?

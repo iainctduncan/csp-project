@@ -19,3 +19,9 @@
     (post "(above-oct-0?) var:" var "val:" val "res:" res)
     res))
 
+; dummy, incomplete. works on only two item list
+(define (make-all-diff var-list)
+  "return a predicate that runs over the var-list"
+  (lambda (csp var val)
+    #t))
+        
