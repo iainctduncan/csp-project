@@ -26,14 +26,6 @@
 (define (not-false? x) 
   (not (false? x)))
 
-;(define (assigned? v)
-;  "check if a vector has a false value anywhere"
-;  (define (rec-assigned v i)
-;    (cond 
-;      ((>= i (length v)) #t)
-;      ((false? (v i)) #f)
-;      (else (rec-assigned v (+ 1 i)))))
-;  (rec-assigned v 0))
 
 ; make a tree object that can return values recursing up the tree from a leaf
 (define (make-tree)

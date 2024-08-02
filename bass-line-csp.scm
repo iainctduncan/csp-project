@@ -59,7 +59,6 @@
         (post "   added id" c-id ":constraints-for-var now:" (_ :constraints-for-var)))
     )
   
-    
     (define (get-applicable-constraints var)
       "return all constraint ids for a var that don't depend on unassigned vars (excluding this var)"
       (let* ((all-ids-for-var (_ :constraints-for-var var))
@@ -77,20 +76,21 @@
                 (rec-loop (cdr vars-over))))))
         (filter is-applicable? all-ids-for-var)))
 
+    ; fix up check constraints to use the above
     (define (check-constraints var val)
-       "apply all constraints for a var, returning value if success, false otherwise"
-       (post "(check-constraints) var:" var "val:" val "c's:" (_ :constraints var))
-       (let test-loop ((v val) (cp-list (_ :constraints var)))
-         (cond 
-           ((null? cp-list) ; got through list, return value 
-             v)
-           ; case getting and testing pred passes, on to next
-           ((let* ((cp-sym (car cp-list))
-                   (cp-fun (eval cp-sym)))
-              (cp-fun self var v))  
-                (test-loop v (cdr cp-list)))
-           (else             ; testing pred returned false, done
-             #f))))
+       "apply all applicable constraints for a var, returning value if success, false otherwise"
+       (post "(check-constraints) var:" var "val:" val)
+       (let* ((c-ids   (get-applicable-constraints var))
+              (c-preds (map (lambda (id)(_ :constraints id :predicate)) c-ids)))
+         (let test-loop ((v val) (cp-list c-preds))
+           (cond 
+             ((null? cp-list) ; got through list ok, return value as it passes
+               v)
+             ; case getting and testing pred passes, recur to next pred
+             (((car cp-list) self var v)  
+               (test-loop v (cdr cp-list)))
+             (else             ; testing pred returned false, done and return false
+               #f)))))
 
     (define (assign-if-valid var val)
       "assign a value to a variable if it passes constraints
