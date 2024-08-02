@@ -7,21 +7,22 @@
 
 
 ;*********************************************************************************
-; my message passing csp object
-; note that this implementation means #f is not a valid domain value!
+; message-based csp object
+; note that this implementation means #f CANNOT be a valid domain value!
 (define (make-csp) 
-  (let ((_ (hash-table 
-    ; variable names, numbers correspond to notes
-    :vars         '(tonic tonality root quality 0 1 2 3)   
-    :context-vars '(tonic tonality root quality)
-    :note-vars    '(0 1 2 3)
-    ; assigned vals is a hash-table keyed by var name (or number)
-    :assigned     (hash-table)  
-    ; constraints and domains are keyed by var name
-    :constraints  (hash-table)
-    ; domains becomes a hash on init
-    :domains      #f
-    )))    
+  (let ((self #f) ; gets set in init
+        (_ (hash-table 
+            ; variable names, numbers correspond to notes
+            :vars         '(tonic tonality root quality 0 1 2 3)   
+            :context-vars '(tonic tonality root quality)
+            :note-vars    '(0 1 2 3)
+            ; assigned vals is a hash-table keyed by var name (or number)
+            :assigned     (hash-table)  
+            ; constraints and domains are keyed by var name
+            :constraints  (hash-table)
+            ; domains becomes a hash on init
+            :domains      #f
+            )))    
 
     (define (get-var var-name)
       (_ :assigned var-name))
@@ -33,42 +34,43 @@
           (if (not (member? c-sym var-constraints))
             (set! (_ :constraints v) (cons c-sym (_ :constraints v)))))))
 
-    ; XXX incomplete
-    (define (apply-constraints var)
-      (post "(csp::apply-constraints) var:" var)
-      ; get the constraints for a var
-      (dolist (c-sym (_ :constraints var))
-        (post "applying constraint" c-sym))
-      (post "  - done applying constraints")
-    )
+    (define (check-constraints var val)
+       "apply all constraints for a var, returning value if success, false otherwise"
+       (post "(check-constraints) var:" var "val:" val "c's:" (_ :constraints var))
+       (let test-loop ((v val) (cp-list (_ :constraints var)))
+         (cond 
+           ((null? cp-list) ; got through list, return value 
+             v)
+           ; case getting and testing pred passes, on to next
+           ((let* ((cp-sym (car cp-list))
+                   (cp-fun (eval cp-sym)))
+              (cp-fun self var v))  
+                (test-loop v (cdr cp-list)))
+           (else             ; testing pred returned false, done
+             #f))))
 
-    ; XXX incomplete
-    (define (check-assign var val)
-      "attempt to assign a value to a var, checking constraints
-       returns false if invalid, returns assigned val if valid"
-      (let ((constraint-preds (_ :constraints var)))
-        (post "check-assign, c's:" constraint-preds)
-        ; LEFT OFF, how to filter through chain of preds?
-      ))
-
-    (define (print)
-      (post _))
-
-    ; explicit init for setting the preassinged context vars
-    (define (init tonic tonality root quality)
-      (post "(csp::init)" tonic tonality root quality)
-      ; for the preassigned values, domain is reduced to one value already
+    
+    ; explicit init for setting the pre-assinged vars
+    (define (init self-ref pre-assignments)
+      (post "(csp::init) pre-assignments:" pre-assignments)
+      (set! self self-ref) ; hacky, figure out better way later - macros?
       (set! (_ :domains) 
-        (hash-table 'tonic tonic 'tonality tonality 'root root 'quality quality
+        (hash-table 
           0 note-domain-values 
           1 note-domain-values 
           2 note-domain-values 
           3 note-domain-values))
+      ; set from the starting-assignments
+      ; for the preassigned values, domain is also set to list of one value already
+      (for-each 
+        (lambda (p)
+          (set! (_ :assigned (car p)) (cdr p))
+          (set! (_ :domains (car p)) (list (cdr p))))
+        pre-assignments)
       ; for each var, initialize a list to hold the constraints
       (dolist (var (_ :vars))
         (set! (_ :constraints var) '()))
       (post " - csp initialized"))
-
 
     (define (get . args) 
       (apply _ args))
@@ -79,9 +81,9 @@
 
 
 (define csp (make-csp))
-(csp 'init 'C 'Major 'I 'Maj7)
-(csp 'add-constraint 'first-note-tonic? '(tonic 0))
-(csp 'add-constraint 'above-first-octave? '(0))
+(csp 'init csp (hash-table 'tonic 'C  'tonality 'Major  'root 'I 'quality 'Maj7))
+(csp 'add-constraint 'is-tonic? '(tonic 0))
+(csp 'add-constraint 'above-oct-0? '(0))
 
 ;********************************************************************************
 
