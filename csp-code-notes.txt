@@ -3,9 +3,41 @@ Notes on my csp code
 csp-1
 - job is to play a simple triad, choosing random realizations
 
-- first bt exp
-- recurse down to a tree of random values to depth 4
 
-- let's have it keep trying values until it gets a 4
 
-- hanging in select-var
+LATER:
+- assign constraints to their variables, for now can just run all of them naively
+
+Representation notes
+- we will need scales, which could be relative to the tonic key based on the chord function
+- scale of IV M : p
+  Maj#4: 1 M2 M3 A4 P5 M6 M7
+
+functions we need
+note-sym->note-num  C0 - 0, C5 - 60, etc
+
+pre-assigned variables:
+  tonic: C  
+  tonality: Maj 
+  root: II  
+  quality: min7
+to assign:
+notes 0 to 4 (lets call them numbers 0 to 3
+
+Implementation notes:
+- assignments will be a hash, with variable names or numbers as keys
+- domains will likewise be a hash, starting with all possible domains
+- constraints will also be hash, with list of all constraints that touch that var
+  so csp is likewise a hash, with keys :values :domains :constraints
+- and we can make a function that puts constraints into the right place
+
+Functions we need:
+- populate domains: puts in 
+
+Questions:
+- are vars filled with midi numbers or symbols?
+- I think we want symbols out so they can be spelled properly and written properly
+  - ie '(D1 F1 A1 Ab1) '(G1 F1 D1 B0) '(C1 E1 G1 E1)
+
+- so that means domain vars are C0 .. B0 including proper accidentals
+  then these get realized 

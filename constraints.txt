@@ -1,0 +1,19 @@
+Constraints list
+
+Variables and their domains:
+
+tonic: { C, Db, D, Eb, E, F, Gb, G, Ab, A, Bb, B}
+tonality: { Maj, Min, Blues }
+root: { I, bII, II, bIII, III, IV, #IV, V, bVI, VI, bVII, VII }
+quality { Maj, Min, Dom, HDim }  to start
+
+N0 ... N3 {C0, C#0, Db0, etc... to 
+
+first-note-root?
+  - against: tonic, root, 0
+
+
+
+(define _ (hash-table :vals (hash-table)))  
+(set! (_ :vals :a) 1)
+_
