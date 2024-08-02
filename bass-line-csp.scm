@@ -17,7 +17,7 @@
             :context-vars '(tonic tonality root quality)
             :note-vars    '(0 1 2 3)
             ; assigned vals is a hash-table keyed by var name (or number)
-            :assigned     (hash-table)  
+            :assignments  (hash-table)  
             ; constraints and domains are keyed by var name
             :constraints  (hash-table)
             ; domains becomes a hash on init
@@ -25,7 +25,7 @@
             )))    
 
     (define (get-var var-name)
-      (_ :assigned var-name))
+      (_ :assignments var-name))
 
     (define (add-constraint c-sym vars)
       ; add reference to the constraint for each var it is against
@@ -49,6 +49,13 @@
            (else             ; testing pred returned false, done
              #f))))
 
+    (define (assign-if-valid var val)
+      "assign a value to a variable if it passes constraints
+       return false on failure, val on success"
+       (let ((checked-val (check-constraints var val)))
+         (if checked-val
+           (set! (_ :assignments var) checked-val) ; this will return the val too
+           #f)))
     
     ; explicit init for setting the pre-assinged vars
     (define (init self-ref pre-assignments)
@@ -61,10 +68,10 @@
           2 note-domain-values 
           3 note-domain-values))
       ; set from the starting-assignments
-      ; for the preassigned values, domain is also set to list of one value already
+      ; for the preassignments values, domain is also set to list of one value already
       (for-each 
         (lambda (p)
-          (set! (_ :assigned (car p)) (cdr p))
+          (set! (_ :assignments (car p)) (cdr p))
           (set! (_ :domains (car p)) (list (cdr p))))
         pre-assignments)
       ; for each var, initialize a list to hold the constraints
