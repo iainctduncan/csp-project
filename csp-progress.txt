@@ -2,9 +2,20 @@ progress:
 
 - object checks and assigns vals
 
+DONE
+- select next var
 
 TODO:
-- select next var
 - select domain value to try? (could just iterate through them)
 
-- question how does it know to recheck constraints as vars are filled in?
+- got constraint checking working nicely
+- next: selecting next var and domain values,
+- make the all diff logic work
+- then ready to build things
+
+- methods to add to the object?
+
+- left off refactoring note and symbol assignments out to separate stores
+  - get-applicable-constraints is busted
+
+- TODO: add post assignment check of global constraints with rollback

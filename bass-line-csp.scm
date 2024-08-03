@@ -9,7 +9,7 @@
 ;*********************************************************************************
 ; message-based csp object
 ; note that this implementation means #f CANNOT be a valid domain value!
-(define (make-csp) 
+(define (make-csp num-notes) 
   (let ((self #f) ; gets set in init
         (_ (hash-table 
             ; variable names, numbers correspond to notes
@@ -17,7 +17,8 @@
             :context-vars '(tonic tonality root quality)
             :note-vars    '(0 1 2 3)
             ; assigned vals is a hash-table keyed by var name (or number)
-            :assignments  (hash-table)  
+            :ctx-assignments  (hash-table)  
+            :note-assignments (make-vector num-notes #f)
             ; domains becomes a hash-table of domain val lists, keyed by var name
             :domains      #f
             ; constraint registry, keyed by a gensym id
@@ -27,6 +28,46 @@
             ; registry of ids by var, keys are the var token, vals the list of constraints
             :constraints-for-var  (hash-table)
             )))    
+
+    ; explicit init for setting the pre-assinged vars
+    (define (init self-ref pre-assignments)
+      (post "(csp::init) pre-assignments:" pre-assignments)
+      (set! self self-ref) ; hacky, figure out better way later - macros?
+      (set! (_ :domains) 
+        (hash-table 
+          0 note-domain-values 
+          1 note-domain-values 
+          2 note-domain-values 
+          3 note-domain-values))
+      (pre-assign pre-assignments)
+      ; set from the starting-assignments
+      ; for each var, initialize a list to hold the constraints
+      (dolist (var (_ :vars))
+        (set! (_ :constraints var) '()))
+      (post " - csp initialized"))
+
+    (define (pre-assign pre-assignments-ht)
+      "pre-assign a value to a var, also reducing the vars domain"
+      (post "(csp::pre-assign) ht: " pre-assignments-ht)
+      ; for the preassignments values, domain is also set to list of one value already
+      (for-each 
+        (lambda (p)
+          (let ((var (car p)) 
+                (val (cdr p)))
+            (if (number? var)
+              (set! (_ :note-assignments var) val)
+              (set! (_ :ctx-assignments var) val))
+          (set! (_ :domains var) (list val))))
+        pre-assignments-ht))
+
+    (define (get-domain-values var)
+      ; TODO add some shuffling so we get a new result on each search 
+      (_ :domains var))
+
+    (define (get-var var)
+      (if (number? var)
+        (_ :note-assignments var)
+        (_ :ctx-assignments var)))
 
     (define (add-constraint pred vars . args)
       "add constraint to the two constraint registries"
@@ -56,25 +97,36 @@
               (else
                 ;(post " already there, noop")
                 (begin)))))
-        (post "   added id" c-id ":constraints-for-var now:" (_ :constraints-for-var)))
-    )
-  
+        ;(post "   added id" c-id ":constraints-for-var now:" (_ :constraints-for-var))
+      ))
+ 
+
+    ; busted here! LEFT OFF:
     (define (get-applicable-constraints var)
       "return all constraint ids for a var that don't depend on unassigned vars (excluding this var)"
-      (let* ((all-ids-for-var (_ :constraints-for-var var))
-             (noop (post "all-ids-for-var, var:" var "c-ids" all-ids-for-var)))
+      (let* ((all-ids-for-var (_ :constraints-for-var var)))
+        (post "get-applicable-constraints var:" var "all-ids-for-var:" all-ids-for-var)
         ; return true if constraint is not over unset vars 
         (define (is-applicable? c-id)
+          ; loop through the variables this constraint is over
           (let rec-loop ((vars-over (_ :constraints c-id :vars)))
             (cond
               ((null? vars-over)  
                 #t)
-              ((and (not (eq? var (car vars-over))) 
-                    (not (_ :assignments (car vars-over))))  
+              ; if the var and the next in the loop aren't the same
+              ; and the var in the loop has not been set, this is not applicable
+              ((let ((test-var (car vars-over))
+                     (asg-store (if (number? vars-over) (_ :note-assignments) (_ :ctx-assignments))))
+                (and (not (eq? var test-var)) 
+                     (not (asg-store test-var)))) 
                 #f)
               (else 
                 (rec-loop (cdr vars-over))))))
-        (filter is-applicable? all-ids-for-var)))
+        (if all-ids-for-var
+          (begin
+            (post "filtered: " (filter is-applicable? all-ids-for-var))
+            (filter is-applicable? all-ids-for-var))
+          '())))
 
     ; fix up check constraints to use the above
     (define (check-constraints var val)
@@ -82,7 +134,9 @@
        (post "(check-constraints) var:" var "val:" val)
        (let* ((c-ids   (get-applicable-constraints var))
               (c-preds (map (lambda (id)(_ :constraints id :predicate)) c-ids)))
+         (post "  - constraint ids:" c-ids "c-preds:" c-preds)
          (let test-loop ((v val) (cp-list c-preds))
+           (post "  - test loop, v:" v "cp-list" cp-list)
            (cond 
              ((null? cp-list) ; got through list ok, return value as it passes
                v)
@@ -91,71 +145,117 @@
                (test-loop v (cdr cp-list)))
              (else             ; testing pred returned false, done and return false
                #f)))))
+    
+    (define (var-assigned? var)
+      (if (number? var)
+        (if (_ :note-assignments var) #t #f)
+        (if (_ :ctx-assignments var) #t #f)))
+
+    (define (all-notes-assigned?)
+      "check if a sequence is assigned (has no false values)"
+      (let rloop ((i 0))
+        (cond
+          ((= i (length (_ :note-assignments))) #t)
+          ((false? (_ :note-assignments i)) #f)
+          (else (rloop (+ 1 i))))))
 
     (define (assign-if-valid var val)
       "assign a value to a variable if it passes constraints
        return false on failure, val on success"
-       (let ((checked-val (check-constraints var val)))
+       (let ((checked-val (check-constraints var val))
+             (assignments (if (number? var) (_ :note-assignments) (_ :ctx-assignments))))
          (if checked-val
-           (set! (_ :assignments var) checked-val) ; this will return the val too
+           (set! (assignments var) checked-val) ; this will return the val too
            #f)))
-    
-    ; explicit init for setting the pre-assinged vars
-    (define (init self-ref pre-assignments)
-      (post "(csp::init) pre-assignments:" pre-assignments)
-      (set! self self-ref) ; hacky, figure out better way later - macros?
-      (set! (_ :domains) 
-        (hash-table 
-          0 note-domain-values 
-          1 note-domain-values 
-          2 note-domain-values 
-          3 note-domain-values))
-      ; set from the starting-assignments
-      ; for the preassignments values, domain is also set to list of one value already
-      (for-each 
-        (lambda (p)
-          (set! (_ :assignments (car p)) (cdr p))
-          (set! (_ :domains (car p)) (list (cdr p))))
-        pre-assignments)
-      ; for each var, initialize a list to hold the constraints
-      (dolist (var (_ :vars))
-        (set! (_ :constraints var) '()))
-      (post " - csp initialized"))
+  
+    (define (assign var val)
+      "assign a var, skip checking"
+      (if (number? var)
+        (set! (_ :note-assignments var) val)
+        (set! (_ :ctx-assignments var) val)))
+
+    ; naive version that just returns the next empty slot in the note assignments vector
+    (define (select-var)
+      "return index of next unassigned note var"
+      ;(post "(csp::select-var)")
+      (let ((next-slot #f)
+            (i 0))
+        (while (< i num-notes)
+          (if (false? (_ :note-assignments i)) 
+            (begin (set! next-slot i) (break)))
+          (set! i (+ 1 i)))
+        ;(post "  - select-var returning" next-slot)
+        next-slot))  
+
+    ; the main search method, fills and returns the notes vars on success
+    ; can take optional positional arg of hash-table of preassignments
+    (define (solve . args)
+      (if (> (length args) 0)
+        (pre-assign (args 0)))
+      (post "SOLVING")
+      (post "csp::(solve) ctx:" (_ :cxt-assignments) "notes:" (_ :note-assignments))
+      
+      ; this works with the object vals, not so sure if that is better than having it separate
+      (define (search result depth)
+        ;if assignment complete, we are done return assignment
+        (post "")
+        (post "csp::solve::(search) depth:" depth "notes:" (_ :note-assignments))
+        (cond 
+          ; case done, no solution found, return failure
+          ((false? result)
+            #f)
+          ; case done, vector of 4 notes filled, return success
+          ((all-notes-assigned?)
+             #t)
+          ; else we still have notes to fill
+          (else
+            ; get the next far to fill
+            (let ((var (select-var)))
+              ; iterate through domain values for i
+              (let* rec-loop ((vals (get-domain-values var)))
+                ;(post "rec-loop: domain-vals:" vals)
+                ; test first value, if good, use it and recurse
+                (if (null? vals)
+                  ; case ran out of domain vals, return failure back up
+                  (begin
+                    ;(post " - no passing domain value found, return failure up stack")
+                    #f)
+                  ; else, try assigning the val
+                  (let ((passed (assign-if-valid var (first vals))))
+                    (if passed
+                      (begin
+                        ;(post " - found passing domain val:" passed "for depth" depth "recursing")
+                        (search passed (+ 1 depth)))
+                      ; else on to next possible domain value  
+                      (rec-loop (cdr vals))))))))))
+
+      ; kick it off, using passing in a ref to the assignements vector, which will get filled
+      (let* ((result (search #t 0)))
+        (cond
+          (result
+            (post "solved, notes:" (_ :note-assignments))
+            result)
+          (else
+            (post "no solution found, returning false")
+            #f))))
 
     (define (get . args) 
       (apply _ args))
-
-    (define (get-var var-name)
-      (_ :assignments var-name))
 
     ; generic dispatch so any internal function can be called as (csp 'fun args ...)
     (lambda (msg . args)
       (apply (eval msg) args))))
 
 
-(define csp (make-csp))
+(define csp (make-csp 4))
 (csp 'init csp (hash-table 'tonic 'C  'tonality 'Major  'root 'I 'quality 'Maj7))
 
 (csp 'add-constraint is-tonic? '(tonic 0) 'is-tonic)
 (csp 'add-constraint above-oct-0? '(0) 'above-oct)
-(csp 'add-constraint (make-all-diff '(0 1)) '(0 1) 'all-diff-0-1)
+(csp 'add-constraint (make-all-diff '(2 3)) '(2 3) 'all-diff-2-3)
 
 
 ;********************************************************************************
-
-; naive version that just returns the next empty slot in the variables vector
-(define (select-var csp notes)
-  "return index of next unassigned variable"
-  (post "(select-var) notes:" notes)
-  (let ((next-slot #f)
-        (i 0))
-    (while (< i (length notes))
-      (if (false? (notes i)) 
-        (begin (set! next-slot i) (break)))
-      (set! i (+ 1 i)))
-    (post "  - select-var returning" next-slot)
-    next-slot))  
-
 
 ; bts-4, does pre and post assignment constraint checking
 ; recurse down until notes vector full, using range 0-4 and only passes on 3
@@ -166,31 +266,23 @@
     (post "(bts) depth:" depth "notes:" notes)
     (cond 
       ; case done, vector of 4 notes filled, return the filled notes
-      ((or (false? notes) (assigned? notes))
+      ((or (false? notes) (csp 'all-assigned? notes))
          notes)
       (else
         ; if we have filled it, it will bounce back up the stack
-        (let ((var-i (select-var csp notes)))
+        (let ((var (csp 'select-var)))
           ; iterate through domain values for i
-          (let* rec-loop ((vals (get-domain-values csp var-i notes)))
+          (let* rec-loop ((vals (csp 'get-domain-values var notes)))
             ;(post "rec-loop: domain-vals:" vals)
             ; test first value, if good, use it and recurse
             (cond
               ((null? vals)
-                (post " - no passing domain value found, return failure")
+                ;(post " - no passing domain value found, return failure")
                 #f)
-              ((passes-pre-check? csp var-i notes (first vals))
-                ;(post " - found passing domain value, using and recursing:")
-                ; value good, use it and recurse
-                (post " - setting note, var-i" var-i "val" (first vals))
-                (set! (notes var-i) (first vals))
-                (if (passes-post-check? csp var-i notes)
-                  (bts csp notes (+ 1 depth))
-                  ; else post check failed, unset last value and return failure
-                  (begin 
-                    (set! (notes var-i) #f)
-                    #f)))
-              ; else on to next domain value  
+              ((csp 'assign-if-valid var (first vals))
+                (post " - FOUND PASSING VAL: " (first vals) "using and recursing:")
+                (bts csp notes (+ 1 depth)))
+                ; else on to next domain value  
               (else 
                 (rec-loop (cdr vals)))))))))
   ; kick it off

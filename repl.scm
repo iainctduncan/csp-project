@@ -1,13 +1,9 @@
 
 (csp 'apply-constraints 0)
 
-;'(C . 0)
 (csp 'get :domains 0)
 
-(define vals (hash-table :a 1))
-(apply vals '(:a))
-
-(csp 'get :constraints 0)
+(csp 'get :constraints)
 
 (csp 'check-constraints 0 '(C . 1))
 (csp 'check-constraints 0 '(C . 0))
@@ -25,4 +21,17 @@
 
 (csp 'get-applicable-constraints 0)
 
+(begin
+(csp 'assign 0 'C)
+(csp 'assign 1 'C)
+(csp 'assign 2 'C)
+(csp 'assign 3 'C)
+(csp 'select-var)
+(csp 'all-notes-assigned?)
+)
 
+(csp 'all-notes-assigned?)
+(csp 'all-notes-assigned?)
+(csp 'get-domain-values 0)
+
+(csp 'solve)
