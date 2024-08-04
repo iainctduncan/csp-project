@@ -1,65 +1,43 @@
-; make this smarter later
-(define (make-sym arg-1 arg-2)
-  (symbol (format #f "~a~a" arg-1 arg-2)))
+
+; music calculation functions
 
 (define *pitch-classes*
   '(C Db D Eb E F Gb G Ab A Bb B))
- 
+
 (define *octaves* (range 0 5))
 
-(define (make-note-domain-values pitch-classes octaves)
-  "return a list of all possible note domain values, from octave 0 to 3 (48 notes)"
-  (let ((vals '()))
-    (for-each (lambda (o)
-      (for-each (lambda (p)
-        (set! vals (cons (cons p o) vals)))
-        pitch-classes))
-      octaves)
-    (reverse vals)))  
+; naive, only handles flat classes right now
+(define pitch-class->int (hash-table  
+  'C 0  'Db 1  'D 2  'Eb 3  'E 4  'F 5  'Gb 6  'G 7  'Ab 8  'A 9  'Bb 10  'B 11))
 
-(define note-domain-values
-  (make-note-domain-values *pitch-classes* *octaves*))
+(define int->pitch-class (hash-table  
+  0 'C   1 'Db   2 'D   3 'Eb   4 'E   5 'F   6 'Gb   7 'G   8 'Ab   9 'A   10 'Bb  11 'B))
 
-(define (false? x) 
-  (eq? #f x))
-
-(define (not-false? x) 
-  (not (false? x)))
-
-
-; make a tree object that can return values recursing up the tree from a leaf
-(define (make-tree)
-  (let ((depth 0)
-        (root (hash-table :children '() :depth 0 :value #f))
-       )
-    (define (add-node parent value)
-      (let* ((parent-node (if parent parent root))
-             (node-depth (+ 1 (parent-node :depth)))
-             (node (hash-table 
-                     :children '() 
-                     :depth node-depth 
-                     :parent parent-node
-                     :value value)))
-        (set! (parent-node :children) (cons node (parent-node :children)))
-        (if (> node-depth depth) (set! depth node-depth))
-        node))
-
-    (define (print)
-      (post "tree depth:" depth "structure" root))
-
-    (define (values-from-node node)
-      ;(post "values-from-node, starting at depth:" (node :depth))
-      ; recurse up the tree from a node to get list of values
-      (let* rec-loop ((n node) 
-                      (vals '()))
-        (cond 
-          ((eq? #f (n :parent))
-            vals)
-          (else
-            (rec-loop (n :parent) (cons (n :value) vals))))))
-
-    (lambda (msg . args)
-      (apply (eval msg) args))) ; end let
+(define interval->steps (hash-table)
+  'prf-u 0    'root 0     'min-2 1    'maj-2 2     'min-3 3     'maj-3 4    'prf-4 5  
+  'aug-4 6    'dim-5 6    'prf-5 7    'min-6 8     'maj-6 9     'min-7 10   'maj-7 11
+  'prf-8 12   'min-9 13   'maj-9 14   'min-10 15   'maj-10 16   'prf-11 17  'aug-11 18  
+  'dim-12 18  'prf-12 19  'min-13 20  'maj-13 21   'min-14 22   'maj-14 23
 )
 
+(define (note->note-num note)
+  "return midi note number from a note pair"
+  (let ((oct-offset (* 12 (cdr note)))
+        (pitch-int  (pitch-class->int (car note))))
+    (+ oct-offset pitch-int)))
+
+(define chord-intervals (hash-table
+  'Maj-7  '(root maj-3 prf-5 maj-7)
+  'Min-7  '(root min-3 prf-5 min-7)
+  'Dom-7  '(root maj-3 prf-5 min-7)))
+
+(define (interval-between n1 n2)
+  "return interval in steps between notes of the form (C . 1) (D .3)"
+  (begin))
+  
+  
+
+
+
+        
 

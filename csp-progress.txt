@@ -12,10 +12,9 @@ TODO:
 - next: selecting next var and domain values,
 - make the all diff logic work
 - then ready to build things
+- add post assignment check of global constraints with rollback
 
-- methods to add to the object?
 
-- left off refactoring note and symbol assignments out to separate stores
-  - get-applicable-constraints is busted
+- need to be able to shuffle domain values
 
-- TODO: add post assignment check of global constraints with rollback
+

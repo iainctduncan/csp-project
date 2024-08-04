@@ -5,6 +5,35 @@
 (load-from-max "bcsp-constraints.scm")
 (define (s4m-reset) (delay 100 (lambda()(send 'reset 'bang))))
 
+; readability helpers
+(define (false? x) 
+  (eq? #f x))
+
+(define (not-false? x) 
+  (not (false? x)))
+
+(define (make-sym arg-1 arg-2)
+  (symbol (format #f "~a~a" arg-1 arg-2)))
+
+; some domain setup
+
+(define *pitch-classes*
+  '(C Db D Eb E F Gb G Ab A Bb B))
+ 
+(define *octaves* (range 0 5))
+
+(define (make-note-domain-values pitch-classes octaves)
+  "return a list of all possible note domain values, from octave 0 to 3 (48 notes)"
+  (let ((vals '()))
+    (for-each (lambda (o)
+      (for-each (lambda (p)
+        (set! vals (cons (cons p o) vals)))
+        pitch-classes))
+      octaves)
+    (reverse vals)))  
+
+(define note-domain-values
+  (make-note-domain-values *pitch-classes* *octaves*))
 
 ;*********************************************************************************
 ; message-based csp object
