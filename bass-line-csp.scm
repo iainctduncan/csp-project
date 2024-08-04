@@ -25,6 +25,7 @@
             ; each entry is hash of pred, vars, id, applied
             ; we can stash data we need for rewinding there too maybe?
             :constraints  (hash-table)
+            :g-constraints '()
             ; registry of ids by var, keys are the var token, vals the list of constraints
             :constraints-for-var  (hash-table)
             )))    
@@ -99,13 +100,16 @@
                 (begin)))))
         ;(post "   added id" c-id ":constraints-for-var now:" (_ :constraints-for-var))
       ))
- 
+
+    ; for now, global constraints are just a list
+    (define (add-global-constraint pred)
+      (set! (_ :g-constraints) (cons pred (_ :g-constraints))))
 
     ; busted here! LEFT OFF:
     (define (get-applicable-constraints var)
       "return all constraint ids for a var that don't depend on unassigned vars (excluding this var)"
       (let* ((all-ids-for-var (_ :constraints-for-var var)))
-        (post "get-applicable-constraints var:" var "all-ids-for-var:" all-ids-for-var)
+        ;(post "get-applicable-constraints var:" var "all-ids-for-var:" all-ids-for-var)
         ; return true if constraint is not over unset vars 
         (define (is-applicable? c-id)
           ; loop through the variables this constraint is over
@@ -123,20 +127,17 @@
               (else 
                 (rec-loop (cdr vars-over))))))
         (if all-ids-for-var
-          (begin
-            (post "filtered: " (filter is-applicable? all-ids-for-var))
-            (filter is-applicable? all-ids-for-var))
+          (filter is-applicable? all-ids-for-var)
           '())))
 
     ; fix up check constraints to use the above
     (define (check-constraints var val)
        "apply all applicable constraints for a var, returning value if success, false otherwise"
-       (post "(check-constraints) var:" var "val:" val)
+       ;(post "(check-constraints) var:" var "val:" val)
        (let* ((c-ids   (get-applicable-constraints var))
               (c-preds (map (lambda (id)(_ :constraints id :predicate)) c-ids)))
-         (post "  - constraint ids:" c-ids "c-preds:" c-preds)
+         ;(post "  - constraint ids:" c-ids "c-preds:" c-preds)
          (let test-loop ((v val) (cp-list c-preds))
-           (post "  - test loop, v:" v "cp-list" cp-list)
            (cond 
              ((null? cp-list) ; got through list ok, return value as it passes
                v)
@@ -145,7 +146,18 @@
                (test-loop v (cdr cp-list)))
              (else             ; testing pred returned false, done and return false
                #f)))))
-    
+   
+    (define (check-global-constraints)
+      "check the constraints that run all the time, true on success, stop on first fail"
+      (let rloop ((preds (_ :g-constraints)))
+        (cond
+          ((null? preds) 
+            #t)
+          ((false? ((car preds) self (_ :note-assignments))) 
+            #f)
+          (else 
+            (rloop (cdr preds))))))
+
     (define (var-assigned? var)
       (if (number? var)
         (if (_ :note-assignments var) #t #f)
@@ -198,8 +210,8 @@
       ; this works with the object vals, not so sure if that is better than having it separate
       (define (search result depth)
         ;if assignment complete, we are done return assignment
-        (post "")
-        (post "csp::solve::(search) depth:" depth "notes:" (_ :note-assignments))
+        ;(post "")
+        ;(post "csp::solve::(search) depth:" depth "notes:" (_ :note-assignments))
         (cond 
           ; case done, no solution found, return failure
           ((false? result)
@@ -222,13 +234,19 @@
                     #f)
                   ; else, try assigning the val
                   (let ((passed (assign-if-valid var (first vals))))
-                    (if passed
-                      (begin
-                        ;(post " - found passing domain val:" passed "for depth" depth "recursing")
-                        (search passed (+ 1 depth)))
-                      ; else on to next possible domain value  
-                      (rec-loop (cdr vals))))))))))
-
+                    (cond
+                      ; didn't pass precheck, on to next possible domain value
+                      ((not passed) 
+                        (rec-loop (cdr vals)))
+                      ; passed precheck, failed globals: unset and continue domain val loop 
+                      ((not (check-global-constraints))
+                        (set! (_ :note-assignments var) #f)
+                        (rec-loop (cdr vals)))
+                      ; passed everything, found value, recurse onwards
+                      (else
+                        (post " - found passing domain val:" passed "for depth" depth "recursing")
+                        (search passed (+ 1 depth)))))))))))
+                  
       ; kick it off, using passing in a ref to the assignements vector, which will get filled
       (let* ((result (search #t 0)))
         (cond
@@ -247,46 +265,14 @@
       (apply (eval msg) args))))
 
 
+;********************************************************************************
 (define csp (make-csp 4))
 (csp 'init csp (hash-table 'tonic 'C  'tonality 'Major  'root 'I 'quality 'Maj7))
 
 (csp 'add-constraint is-tonic? '(tonic 0) 'is-tonic)
 (csp 'add-constraint above-oct-0? '(0) 'above-oct)
-(csp 'add-constraint (make-all-diff '(2 3)) '(2 3) 'all-diff-2-3)
+(csp 'add-global-constraint all-diff?)
 
-
-;********************************************************************************
-
-; bts-4, does pre and post assignment constraint checking
-; recurse down until notes vector full, using range 0-4 and only passes on 3
-; 
-(define (bts-4 csp notes)
-  (define (bts csp notes depth)
-    ;if assignment complete, we are done return assignment
-    (post "(bts) depth:" depth "notes:" notes)
-    (cond 
-      ; case done, vector of 4 notes filled, return the filled notes
-      ((or (false? notes) (csp 'all-assigned? notes))
-         notes)
-      (else
-        ; if we have filled it, it will bounce back up the stack
-        (let ((var (csp 'select-var)))
-          ; iterate through domain values for i
-          (let* rec-loop ((vals (csp 'get-domain-values var notes)))
-            ;(post "rec-loop: domain-vals:" vals)
-            ; test first value, if good, use it and recurse
-            (cond
-              ((null? vals)
-                ;(post " - no passing domain value found, return failure")
-                #f)
-              ((csp 'assign-if-valid var (first vals))
-                (post " - FOUND PASSING VAL: " (first vals) "using and recursing:")
-                (bts csp notes (+ 1 depth)))
-                ; else on to next domain value  
-              (else 
-                (rec-loop (cdr vals)))))))))
-  ; kick it off
-  (bts csp notes 0))          
 
 
 ;(load-from-max "csp-1-tests.scm")
