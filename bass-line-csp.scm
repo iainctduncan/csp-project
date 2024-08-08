@@ -15,26 +15,6 @@
 (define (make-sym arg-1 arg-2)
   (symbol (format #f "~a~a" arg-1 arg-2)))
 
-; some domain setup
-
-(define *pitch-classes*
-  '(C Db D Eb E F Gb G Ab A Bb B))
- 
-(define *octaves* (range 0 5))
-
-(define (make-note-domain-values pitch-classes octaves)
-  "return a list of all possible note domain values, from octave 0 to 3 (48 notes)"
-  (let ((vals '()))
-    (for-each (lambda (o)
-      (for-each (lambda (p)
-        (set! vals (cons (cons p o) vals)))
-        pitch-classes))
-      octaves)
-    (reverse vals)))  
-
-(define note-domain-values
-  (make-note-domain-values *pitch-classes* *octaves*))
-
 ;*********************************************************************************
 ; message-based csp object
 ; note that this implementation means #f CANNOT be a valid domain value!
@@ -63,12 +43,13 @@
     (define (init self-ref pre-assignments)
       (post "(csp::init) pre-assignments:" pre-assignments)
       (set! self self-ref) ; hacky, figure out better way later - macros?
+      ; domains are vectors of symbols of notes
       (set! (_ :domains) 
         (hash-table 
-          0 note-domain-values 
-          1 note-domain-values 
-          2 note-domain-values 
-          3 note-domain-values))
+          0 (vector->list note-symbols)
+          1 (vector->list note-symbols)
+          2 (vector->list note-symbols)
+          3 (vector->list note-symbols)))
       (pre-assign pre-assignments)
       ; set from the starting-assignments
       ; for each var, initialize a list to hold the constraints
@@ -78,7 +59,7 @@
 
     (define (pre-assign pre-assignments-ht)
       "pre-assign a value to a var, also reducing the vars domain"
-      (post "(csp::pre-assign) ht: " pre-assignments-ht)
+      ;(post "(csp::pre-assign) ht: " pre-assignments-ht)
       ; for the preassignments values, domain is also set to list of one value already
       (for-each 
         (lambda (p)
@@ -101,7 +82,7 @@
 
     (define (add-constraint pred vars . args)
       "add constraint to the two constraint registries"
-      (post "add-constraint, pred:" pred "vars:" vars)
+      ;(post "add-constraint, pred:" pred "vars:" vars)
       ; add an ht record for the constraint keyed by gensym
       (let* ((c-id (if (length args) (args 0) gensym))
              (c-entry (hash-table
@@ -134,7 +115,6 @@
     (define (add-global-constraint pred)
       (set! (_ :g-constraints) (cons pred (_ :g-constraints))))
 
-    ; busted here! LEFT OFF:
     (define (get-applicable-constraints var)
       "return all constraint ids for a var that don't depend on unassigned vars (excluding this var)"
       (let* ((all-ids-for-var (_ :constraints-for-var var)))
@@ -273,7 +253,7 @@
                         (rec-loop (cdr vals)))
                       ; passed everything, found value, recurse onwards
                       (else
-                        (post " - found passing domain val:" passed "for depth" depth "recursing")
+                        ;(post " - found passing domain val:" passed "for depth" depth "recursing")
                         (search passed (+ 1 depth)))))))))))
                   
       ; kick it off, using passing in a ref to the assignements vector, which will get filled

@@ -31,6 +31,8 @@ Implementation notes:
   so csp is likewise a hash, with keys :values :domains :constraints
 - and we can make a function that puts constraints into the right place
 
+
+
 Functions we need:
 - populate domains: puts in 
 
@@ -41,3 +43,17 @@ Questions:
 
 - so that means domain vars are C0 .. B0 including proper accidentals
   then these get realized 
+
+Constraint reg
+- need to be able to get all constraints involved in var and all vars that constraint is over
+- have a hash-table of constraints
+
+- getting them out when working with a var:
+  - iter through all registered constraints 
+    - if var in constraint's var list, and other vars in constraint's var list have been assigned
+     
+
+
+
+on add-constraint
+- put the constraint into the

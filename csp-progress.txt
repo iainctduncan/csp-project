@@ -14,7 +14,8 @@ TODO:
 - then ready to build things
 - add post assignment check of global constraints with rollback
 
-
 - need to be able to shuffle domain values
 
+- go back to symbols for notes instead of the pairs
+  pairs too clunky to read, not sure how to handle accidentals, etc
 

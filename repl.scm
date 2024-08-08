@@ -36,14 +36,9 @@
 
 (csp 'solve)
 
-(define ht (hash-table :a 1 :b (vector 2 3)))
-(ht :b 1)
-
-(vector->list (vector 1 2))
 
 (all-diff #f '(1 2 3 4))
 (all-diff #f '(1 2 1 4))
 (all-diff #f '(1 #f #f 4))
 
-(do ((i 0 (+ 1 i))) ((= i 3))
-  (post i))
+(csp 'get :domains)
