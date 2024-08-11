@@ -24,36 +24,21 @@ pre-assigned variables:
 to assign:
 notes 0 to 4 (lets call them numbers 0 to 3
 
-Implementation notes:
-- assignments will be a hash, with variable names or numbers as keys
-- domains will likewise be a hash, starting with all possible domains
-- constraints will also be hash, with list of all constraints that touch that var
-  so csp is likewise a hash, with keys :values :domains :constraints
-- and we can make a function that puts constraints into the right place
+How do we check if a note is in a chord properly?
+- we need to ref the pitch against the pitches in a chord
+- given a chord symbol and it's root, what are the pitches?
+- so need function/hash, 
+  (pitches-in-chord chord-sym root)
+- but we also need enharmonic testing to pass
+- when we test a domain value, we aren't worried about enharms,
+  it's like a midi note and we can present it properly after the fact
+- prob good to add a comparator, (en-eq?) 
+- make a hash of enharmonic equivalents that can be looped through
+
+- easy solution would to get midi note numbers for each and compare that mod 12
+
+- so for (chord-third? note root chord)  
 
 
 
-Functions we need:
-- populate domains: puts in 
 
-Questions:
-- are vars filled with midi numbers or symbols?
-- I think we want symbols out so they can be spelled properly and written properly
-  - ie '(D1 F1 A1 Ab1) '(G1 F1 D1 B0) '(C1 E1 G1 E1)
-
-- so that means domain vars are C0 .. B0 including proper accidentals
-  then these get realized 
-
-Constraint reg
-- need to be able to get all constraints involved in var and all vars that constraint is over
-- have a hash-table of constraints
-
-- getting them out when working with a var:
-  - iter through all registered constraints 
-    - if var in constraint's var list, and other vars in constraint's var list have been assigned
-     
-
-
-
-on add-constraint
-- put the constraint into the

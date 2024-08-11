@@ -275,12 +275,20 @@
 
 
 ;********************************************************************************
-(define csp (make-csp 4))
-(csp 'init csp (hash-table 'tonic 'C  'tonality 'Major  'root 'I 'quality 'Maj7))
 
+(begin
+(define csp (make-csp 4))
+(csp 'init csp (hash-table 'tonic 'C  'tonality 'Major  'root 'I  'quality 'Maj7))
 (csp 'add-constraint is-tonic? '(tonic 0) 'is-tonic)
-(csp 'add-constraint above-oct-0? '(0) 'above-oct)
+(csp 'add-constraint above-oct-0?  '(0) 'above-oct)
+(csp 'add-constraint chord-root?   '(0) 'n0-root)
+(csp 'add-constraint chord-3rd?    '(1) 'n1-third)
+(csp 'add-constraint chord-5th?    '(2) 'n2-fifth)
+(csp 'add-constraint chord-7th?    '(3) 'n3-seventh)
+
 (csp 'add-global-constraint all-diff?)
+(csp 'add-global-constraint (intv-under? 'prf-5))
+)
 
 
 

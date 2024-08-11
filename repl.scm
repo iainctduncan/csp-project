@@ -36,9 +36,4 @@
 
 (csp 'solve)
 
-
-(all-diff #f '(1 2 3 4))
-(all-diff #f '(1 2 1 4))
-(all-diff #f '(1 #f #f 4))
-
-(csp 'get :domains)
+(is-chord-factor? csp 0 'C0 0)
