@@ -37,3 +37,5 @@
 (csp 'solve)
 
 (is-chord-factor? csp 0 'C0 0)
+
+(append '(1 2) '(3 4))

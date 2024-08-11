@@ -21,15 +21,17 @@
 (define (make-csp num-notes) 
   (let ((self #f) ; gets set in init
         (_ (hash-table 
-            ; variable names, numbers correspond to notes
-            :vars         '(tonic tonality root quality 0 1 2 3)   
+            ; note, vars and note-vars get extended/set by list of note indices in init
+            :vars         '(tonic tonality root quality target target-q)   
+            ;:vars         '(tonic tonality root quality 0 1 2 3 4)
             :context-vars '(tonic tonality root quality)
-            :note-vars    '(0 1 2 3)
+            ;:note-vars    '(0 1 2 3 4) ; will become '(0 ... num-notes) 
+            :note-vars    '() ; will become '(0 ... num-notes) 
             ; assigned vals is a hash-table keyed by var name (or number)
             :ctx-assignments  (hash-table)  
             :note-assignments (make-vector num-notes #f)
             ; domains becomes a hash-table of domain val lists, keyed by var name
-            :domains      #f
+            :domains      (hash-table)
             ; constraint registry, keyed by a gensym id
             ; each entry is hash of pred, vars, id, applied
             ; we can stash data we need for rewinding there too maybe?
@@ -43,13 +45,12 @@
     (define (init self-ref pre-assignments)
       (post "(csp::init) pre-assignments:" pre-assignments)
       (set! self self-ref) ; hacky, figure out better way later - macros?
+      (set! (_ :note-vars) (range 0 num-notes))
+      (set! (_ :vars) (append (_ :vars) (range 0 num-notes)))
       ; domains are vectors of symbols of notes
-      (set! (_ :domains) 
-        (hash-table 
-          0 (vector->list note-symbols)
-          1 (vector->list note-symbols)
-          2 (vector->list note-symbols)
-          3 (vector->list note-symbols)))
+      (dolist (i (_ :note-vars))
+        (set! (_ :domains i) (vector->list note-symbols)))
+
       (pre-assign pre-assignments)
       ; set from the starting-assignments
       ; for each var, initialize a list to hold the constraints
@@ -277,14 +278,19 @@
 ;********************************************************************************
 
 (begin
-(define csp (make-csp 4))
-(csp 'init csp (hash-table 'tonic 'C  'tonality 'Major  'root 'I  'quality 'Maj7))
-(csp 'add-constraint is-tonic? '(tonic 0) 'is-tonic)
+(define csp (make-csp 5))
+(csp 'init csp (hash-table 
+                'tonic 'C  'tonality 'Major  
+                'root 'I  'quality 'Dom7
+                'target 'IV 'target-q 'Dom7))
+
+(csp 'add-constraint is-tonic?      '(tonic 0) 'is-tonic)
 (csp 'add-constraint above-oct-0?  '(0) 'above-oct)
 (csp 'add-constraint chord-root?   '(0) 'n0-root)
 (csp 'add-constraint chord-3rd?    '(1) 'n1-third)
 (csp 'add-constraint chord-5th?    '(2) 'n2-fifth)
 (csp 'add-constraint chord-7th?    '(3) 'n3-seventh)
+(csp 'add-constraint target-root?  '(4) 'target-root)
 
 (csp 'add-global-constraint all-diff?)
 (csp 'add-global-constraint (intv-under? 'prf-5))

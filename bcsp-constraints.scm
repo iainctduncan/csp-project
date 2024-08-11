@@ -55,6 +55,17 @@
     (is-chord-factor? csp var val 1)
     (is-chord-factor? csp var val 2)))
     
+(define (target-root? csp var val)
+  "pass if pitch is the root of the target"
+  ;(post "(target-root?)" val)
+  (let* ((key (csp 'get-var 'tonic))
+         (target-rnum (csp 'get-var 'target))
+         (noop (post "  - " key target-rnum))
+         (target-pitch (root-pitch key target-rnum))
+         (res (enh-eq? target-pitch (note->pitch val))))
+    ;(post "  target-pitch:" target-pitch "res:" res)
+    res))       
+
 
 ;********************************************************************************
 ; global constraints

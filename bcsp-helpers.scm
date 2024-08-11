@@ -89,12 +89,12 @@
   'I 0  'bII 1  'II 2  'bIII 3  'III 4   'IV 5  '#IV 6  'bV 6
   'V 7  'bVI 8  'VI 9  'bVII 10 'VII 11))
 
-; oops, csp root is actually a roman numeral
 
 (define (root-pitch key-sym root-rnum)
   "return the root pitch for a chord rnum and key"
   (let* ((root-int (rnum->int root-rnum))
-         (pitch (pitch->int root-int)))
+         (pitch (int->pitch root-int)))
+    ;(post "(root-pitch)" key-sym root-rnum "root-int:" root-int "pitch:" pitch)
     pitch))       
 
 (define (root-chord->note-nums root chord-q)
