@@ -50,7 +50,8 @@
       ; domains are vectors of symbols of notes
       (dolist (i (_ :note-vars))
         (set! (_ :domains i) (vector->list note-symbols)))
-
+      ; reset notes to false
+      (dotimes (i num-notes) (set! (_ :note-assignments i) #f))
       (pre-assign pre-assignments)
       ; set from the starting-assignments
       ; for each var, initialize a list to hold the constraints
@@ -192,6 +193,7 @@
   
     (define (assign var val)
       "assign a var, skip checking"
+      (post "(assign)" var val)
       (if (number? var)
         (set! (_ :note-assignments var) val)
         (set! (_ :ctx-assignments var) val)))
@@ -264,11 +266,16 @@
       (let* ((result (recursive-search #t 0)))
         (cond
           (result
-            (post "solved, notes:" (_ :note-assignments))
-            result)
+            (post "SOLVED, notes:" (_ :note-assignments))
+            (_ :note-assignments))
           (else
             (post "no solution found, returning false")
             #f))))
+
+    (define (init-solve args)
+      (init self args)
+      (post "(init-solve) ctx:" (_ :ctx-assignments) "notes:" (_ :note-assignments))
+      (solve))
 
     (define (get . args) 
       (apply _ args))
@@ -280,29 +287,62 @@
 
 ;********************************************************************************
 
-(begin
-(define csp (make-csp 5))
-(csp 'init csp (hash-table 
-                'tonic 'C  'tonality 'Major  
-                'root 'I  'quality 'Dom7
-                'target 'IV 'target-q 'Dom7))
-
-(csp 'add-constraint is-tonic? '(tonic 0) 'is-tonic)
-(csp 'add-constraint above-oct-0? '(0) 'above-oct)
-(csp 'add-constraint chord-root? '(0)  'n0-root)
-(csp 'add-constraint in-chord? '(1) 'in-chord-1)
-(csp 'add-constraint in-chord? '(2) 'in-chord-2)
-(csp 'add-constraint target-root? '(4) 'target-root)
-
-(csp 'add-global-constraint all-diff?)
-(csp 'add-global-constraint (intv-under? 'prf-4))
-(csp 'add-global-constraint target-from-neighbour?)
-)
-
-
 ;(load-from-max "csp-1-tests.scm")
 ;(run-tests)
 
 (post "csp-1.scm loaded")
 
+(define chord-prog '((II Min7) (V Dom7) (I Maj7) (I Maj7)))
+
+(define (add-constraints csp)
+  ;(csp 'add-constraint is-tonic? '(tonic 0) 'is-tonic)
+  (csp 'add-constraint chord-root? '(0)  'n0-root)
+  (csp 'add-constraint in-chord? '(1) 'in-chord-1)
+  (csp 'add-constraint in-chord? '(2) 'in-chord-2)
+  (csp 'add-constraint target-root? '(4) 'target-root)
+  (csp 'add-global-constraint (diff? '(0 1 2)))
+  (csp 'add-global-constraint (intv-under? 'maj-3))
+  (csp 'add-global-constraint target-from-neighbour?)
+)  
+
+(define csp (make-csp 5))
+
+; function to build four per bar bass line over a prog
+(define (bass-line chord-prog tonic tonality)
+  (post "(bass-line)" tonic tonality chord-prog)
+
+  (let* (;(csp (make-csp 5))
+         (csp-base (hash-table 'tonic tonic 'tonality tonality))
+         (notes-per-bar 4)
+         (num-bars (length chord-prog))
+         (start-on 'D1)
+         (line (make-vector (* notes-per-bar num-bars) #f))) 
+    (add-constraints csp)
+   
+    ;(dotimes (b-num num-bars)
+    (let solve-loop ((b-num 0) (first-note start-on))
+      (post "solve-loop line for bar:" (chord-prog b-num) "start on:" first-note )
+      (let* ((next-b-num (+ 1 b-num))
+             (this-chord (chord-prog b-num))
+             (rnum (this-chord 0))
+             (qual (this-chord 1))
+             (next-chord (if (< next-b-num num-bars) (chord-prog next-b-num) #f))
+             (csp-vals (hash-table 'root rnum 'quality qual
+                          'target (if next-chord (next-chord 0) #f)))
+             (noop (csp 'init csp (append csp-base csp-vals)))
+             (noop (csp 'assign-if-valid 0 first-note))
+             (notes-out (csp 'solve)))
+        (post "  - notes-out" notes-out)
+        ; copy over the notes from the solver
+        (dotimes (i notes-per-bar)
+          (set! (line (+ (* b-num notes-per-bar) i)) (notes-out i)))
+        (post "  copied notes, line now: " line)  
+        (post "  next-start note:" (notes-out notes-per-bar))
+        ; set starting note for next bar
+        (if (< b-num (- num-bars 1))
+          (solve-loop (+ 1 b-num) (notes-out notes-per-bar)))))
+
+    (post "DONE line:")
+    (dotimes (i (length line)) (post (line i)))
+    ))          
 

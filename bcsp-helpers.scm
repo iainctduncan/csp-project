@@ -119,4 +119,9 @@
   ; TODO implement the enharmonic later
   (eq? a b))
         
-
+; version of member that works on vectors or lists        
+(define (in? needle seq)
+  (let ((res #f))
+    (dotimes (i (length seq))
+      (if (eq? needle (seq i)) (set! res #t)))
+    res))  

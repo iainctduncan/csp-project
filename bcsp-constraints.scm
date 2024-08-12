@@ -27,7 +27,7 @@
          (chord-pitches (root-chord->pitches root chord-q))
          (val-pitch (note->pitch val))
          (res (enh-eq? val-pitch (chord-pitches factor))))
-    ;(post "  (is-chord-factor? var:" var "val:" val "factor:" factor "res:" res)
+    ;(post "  - var:" var "val:" val "factor:" factor "res:" res)
     res))
 
 (define (chord-root? csp var val)
@@ -83,6 +83,24 @@
           (set! pass #f))))
     pass))
 
+; diff is like all-diff but takes list of note vars
+(define (diff? note-var-list)
+  (lambda (csp notes)
+    (post "diff? note-var-list" note-var-list "notes" notes) 
+    (let ((len   (length notes))
+          (pass  #t))
+      (do ((i 0 (+ 1 i))) ((= i len))
+        (do ((j 0 (+ 1 j))) ((= j len))
+          (if (and 
+                (in? i note-var-list) 
+                (in? j note-var-list) 
+                (eq? (notes i) (notes j)) 
+                (not (= i j)) 
+                (not (false? (notes i))))
+            (begin 
+              (post " - fail, i" i "j" j "in" (in? i note-var-list))
+              (set! pass #f)))))
+      pass)))
 
 ; checks intervals between all assigned notes
 (define (intv-under? intv)
@@ -102,7 +120,7 @@
 
 ; for now this forces a lower chromatic neighbour
 (define (target-from-neighbour? csp notes)
-  (if (or (false? (notes 3)) (false? (notes 4)))
+  (if (or (not (csp 'get-var 'target)) (not (notes 3)) (not (notes 4)))
     #t
     (let* ((n-note (notes 3))
            (t-note (notes 4))

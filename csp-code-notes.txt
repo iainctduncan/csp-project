@@ -26,10 +26,3 @@ notes 0 to 4 (lets call them numbers 0 to 3
 
 
 
-BUG:
-- running constraints over more than one var in the reg list means
-  they don't actually run, see target-neighbour?
-
-- also, with constraints that fail near end, it won't backtrack
- - if it fails at lowest depth, it returns false all the way
-   up the stack instead of unsetting and retrying next branch

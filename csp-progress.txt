@@ -7,15 +7,24 @@ DONE
 - got solver finding chord factors of
 - gets to target root
 
+ISSUES/BUGS:
+- running constraints over more than one var in the reg list means
+  they don't actually run, see target-neighbour?
+
+
 TODO:
 - select domain value to try? (could just iterate through them)
+- need to be able to shuffle domain values so we get different results
+- make a program that takes a chord prog and gets four bars
+  according to our rules
+- add stochastic global constraints to sometimes allow big leaps
+  or sometimes walk vs steps, or sometimes up, sometimes down
 
-- got constraint checking working nicely
-- next: selecting next var and domain values,
-- add post assignment check of global constraints with rollback
-  - does not have rollback
-
-- need to be able to shuffle domain values
 
 NEXT:
 - need constraint for target neighbour
+
+- got it going on to next bar, but it fails to solve
+  when pre-assigned the starting note, figure out why
+  - presumably that assignment is causing contraints to fail
+  - yes, assigning the first note makes a failure
