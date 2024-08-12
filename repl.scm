@@ -38,4 +38,5 @@
 
 (is-chord-factor? csp 0 'C0 0)
 
+(csp 'get-var 'tonic)
 (append '(1 2) '(3 4))

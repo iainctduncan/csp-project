@@ -218,47 +218,50 @@
       (post "csp::(solve) ctx:" (_ :cxt-assignments) "notes:" (_ :note-assignments))
       
       ; this works with the object vals, not so sure if that is better than having it separate
-      (define (search result depth)
+      (define (recursive-search result depth)
         ;if assignment complete, we are done return assignment
         ;(post "")
-        ;(post "csp::solve::(search) depth:" depth "notes:" (_ :note-assignments))
+        (post "csp::solve::(search) depth:" depth "notes:" (_ :note-assignments))
         (cond 
-          ; case done, no solution found, return failure
-          ((false? result)
-            #f)
           ; case done, vector of 4 notes filled, return success
+          ; executes when we get to the bottom of recuring down
           ((all-notes-assigned?)
+             ;(post "  - all note assigned, returning #t up stack")
              #t)
           ; else we still have notes to fill
           (else
             ; get the next far to fill
             (let ((var (select-var)))
               ; iterate through domain values for i
-              (let* rec-loop ((vals (get-domain-values var)))
-                ;(post "rec-loop: domain-vals:" vals)
+              (let* domain-val-loop ((vals (get-domain-values var)))
+                ;(post "domain-val-loop: domain-vals:" vals)
                 ; test first value, if good, use it and recurse
                 (if (null? vals)
                   ; case ran out of domain vals, return failure back up
                   (begin
-                    ;(post " - no passing domain value found, return failure up stack")
+                    ;(post " - out of possible domain values, return #f up stack")
                     #f)
-                  ; else, try assigning the val
+                  ; else, try assigning the val, check constraints we can run so far
                   (let ((passed (assign-if-valid var (first vals))))
                     (cond
                       ; didn't pass precheck, on to next possible domain value
                       ((not passed) 
-                        (rec-loop (cdr vals)))
+                        (domain-val-loop (cdr vals)))
                       ; passed precheck, failed globals: unset and continue domain val loop 
                       ((not (check-global-constraints))
                         (set! (_ :note-assignments var) #f)
-                        (rec-loop (cdr vals)))
+                        (domain-val-loop (cdr vals)))
                       ; passed everything, found value, recurse onwards
+                      ; if recursing fails, unset var and continue looking
+                      ((not (recursive-search passed (+ 1 depth)))
+                        (set! (_ :note-assignments var) #f)
+                        (domain-val-loop (cdr vals)))
                       (else
-                        ;(post " - found passing domain val:" passed "for depth" depth "recursing")
-                        (search passed (+ 1 depth)))))))))))
+                        ;(post " - found passing domain val:" passed "for depth" depth "returning #t")
+                        #t)))))))))
                   
       ; kick it off, using passing in a ref to the assignements vector, which will get filled
-      (let* ((result (search #t 0)))
+      (let* ((result (recursive-search #t 0)))
         (cond
           (result
             (post "solved, notes:" (_ :note-assignments))
@@ -284,18 +287,17 @@
                 'root 'I  'quality 'Dom7
                 'target 'IV 'target-q 'Dom7))
 
-(csp 'add-constraint is-tonic?      '(tonic 0) 'is-tonic)
-(csp 'add-constraint above-oct-0?  '(0) 'above-oct)
-(csp 'add-constraint chord-root?   '(0) 'n0-root)
-(csp 'add-constraint chord-3rd?    '(1) 'n1-third)
-(csp 'add-constraint chord-5th?    '(2) 'n2-fifth)
-(csp 'add-constraint chord-7th?    '(3) 'n3-seventh)
-(csp 'add-constraint target-root?  '(4) 'target-root)
+(csp 'add-constraint is-tonic? '(tonic 0) 'is-tonic)
+(csp 'add-constraint above-oct-0? '(0) 'above-oct)
+(csp 'add-constraint chord-root? '(0)  'n0-root)
+(csp 'add-constraint in-chord? '(1) 'in-chord-1)
+(csp 'add-constraint in-chord? '(2) 'in-chord-2)
+(csp 'add-constraint target-root? '(4) 'target-root)
 
 (csp 'add-global-constraint all-diff?)
-(csp 'add-global-constraint (intv-under? 'prf-5))
+(csp 'add-global-constraint (intv-under? 'prf-4))
+(csp 'add-global-constraint target-from-neighbour?)
 )
-
 
 
 ;(load-from-max "csp-1-tests.scm")

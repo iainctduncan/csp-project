@@ -60,12 +60,14 @@
   ;(post "(target-root?)" val)
   (let* ((key (csp 'get-var 'tonic))
          (target-rnum (csp 'get-var 'target))
-         (noop (post "  - " key target-rnum))
          (target-pitch (root-pitch key target-rnum))
          (res (enh-eq? target-pitch (note->pitch val))))
     ;(post "  target-pitch:" target-pitch "res:" res)
     res))       
 
+;(define (target-neighbour? csp var val)
+;  (post "(target-neighbour? var:" var "val:" val)
+;  #t)
 
 ;********************************************************************************
 ; global constraints
@@ -97,5 +99,16 @@
           (if (and dist (> dist max-semis))
             (set! pass #f))))        
       pass)))       
-      
-  
+
+; for now this forces a lower chromatic neighbour
+(define (target-from-neighbour? csp notes)
+  (if (or (false? (notes 3)) (false? (notes 4)))
+    #t
+    (let* ((n-note (notes 3))
+           (t-note (notes 4))
+           (n-num (note->note-num n-note))
+           (t-num (note->note-num t-note))
+           (res (= 1 (- t-num n-num))))
+      ;(post "(target-from-neighbour) n:" n-note "t:" t-note "res:" res)
+      ;(post "  notes: " notes)
+      res)))

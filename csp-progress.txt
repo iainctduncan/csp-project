@@ -4,18 +4,18 @@ progress:
 
 DONE
 - select next var
+- got solver finding chord factors of
+- gets to target root
 
 TODO:
 - select domain value to try? (could just iterate through them)
 
 - got constraint checking working nicely
 - next: selecting next var and domain values,
-- make the all diff logic work
-- then ready to build things
 - add post assignment check of global constraints with rollback
+  - does not have rollback
 
 - need to be able to shuffle domain values
 
-- go back to symbols for notes instead of the pairs
-  pairs too clunky to read, not sure how to handle accidentals, etc
-
+NEXT:
+- need constraint for target neighbour

@@ -24,21 +24,12 @@ pre-assigned variables:
 to assign:
 notes 0 to 4 (lets call them numbers 0 to 3
 
-How do we check if a note is in a chord properly?
-- we need to ref the pitch against the pitches in a chord
-- given a chord symbol and it's root, what are the pitches?
-- so need function/hash, 
-  (pitches-in-chord chord-sym root)
-- but we also need enharmonic testing to pass
-- when we test a domain value, we aren't worried about enharms,
-  it's like a midi note and we can present it properly after the fact
-- prob good to add a comparator, (en-eq?) 
-- make a hash of enharmonic equivalents that can be looped through
-
-- easy solution would to get midi note numbers for each and compare that mod 12
-
-- so for (chord-third? note root chord)  
 
 
+BUG:
+- running constraints over more than one var in the reg list means
+  they don't actually run, see target-neighbour?
 
-
+- also, with constraints that fail near end, it won't backtrack
+ - if it fails at lowest depth, it returns false all the way
+   up the stack instead of unsetting and retrying next branch
