@@ -6,6 +6,8 @@ DONE
 - select next var
 - got solver finding chord factors of
 - gets to target root
+- made constraint for target neighbour
+  - only allows chromatic below or above
 
 ISSUES/BUGS:
 - running constraints over more than one var in the reg list means
@@ -22,9 +24,5 @@ TODO:
 
 
 NEXT:
-- need constraint for target neighbour
 
-- got it going on to next bar, but it fails to solve
-  when pre-assigned the starting note, figure out why
-  - presumably that assignment is causing contraints to fail
-  - yes, assigning the first note makes a failure
+

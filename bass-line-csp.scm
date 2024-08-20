@@ -15,6 +15,8 @@
 (define (make-sym arg-1 arg-2)
   (symbol (format #f "~a~a" arg-1 arg-2)))
 
+; for debugging access
+(define __ #f)
 ;*********************************************************************************
 ; message-based csp object
 ; note that this implementation means #f CANNOT be a valid domain value!
@@ -57,6 +59,8 @@
       ; for each var, initialize a list to hold the constraints
       (dolist (var (_ :vars))
         (set! (_ :constraints var) '()))
+      ; for debugging, save state to top level
+      (set! __ _)
       (post " - csp initialized"))
 
     (define (pre-assign pre-assignments-ht)
@@ -76,6 +80,24 @@
     (define (get-domain-values var)
       ; TODO add some shuffling so we get a new result on each search 
       (_ :domains var))
+
+    (define (get-random-domain-value var)
+      "return a random value from a var's domain val list"
+      ((_ :domains var) (random (length (_ :domains var)))))
+
+    (define (remove-domain-value var value)
+      "remove a domain value from a vars domain values
+       assumes a value will only be in the domain values list once"
+      (set! (_ :domains var) 
+        (let rloop ((i 0) (front '()) (rest val-list))
+          (cond
+            ((null? rest)
+              (reverse front))
+            ((eq? (car rest) value)
+              ; return list without the popped item
+              (append (reverse front) (cdr rest)))
+            (else
+              (rloop (+ 1 i) (cons (car rest) front) (cdr rest)))))))
 
     (define (get-var var)
       (if (number? var)
@@ -219,8 +241,7 @@
       (post "SOLVING")
       (post "csp::(solve) ctx:" (_ :cxt-assignments) "notes:" (_ :note-assignments))
       
-      ; this works with the object vals, not so sure if that is better than having it separate
-      (define (recursive-search result depth)
+      (define (recursive-search depth)
         ;if assignment complete, we are done return assignment
         ;(post "")
         (post "csp::solve::(search) depth:" depth "notes:" (_ :note-assignments))
@@ -232,12 +253,11 @@
              #t)
           ; else we still have notes to fill
           (else
-            ; get the next far to fill
+            ; get the next var to fill
             (let ((var (select-var)))
               ; iterate through domain values for i
               (let* domain-val-loop ((vals (get-domain-values var)))
                 ;(post "domain-val-loop: domain-vals:" vals)
-                ; test first value, if good, use it and recurse
                 (if (null? vals)
                   ; case ran out of domain vals, return failure back up
                   (begin
@@ -255,7 +275,7 @@
                         (domain-val-loop (cdr vals)))
                       ; passed everything, found value, recurse onwards
                       ; if recursing fails, unset var and continue looking
-                      ((not (recursive-search passed (+ 1 depth)))
+                      ((not (recursive-search (+ 1 depth)))
                         (set! (_ :note-assignments var) #f)
                         (domain-val-loop (cdr vals)))
                       (else
@@ -263,7 +283,7 @@
                         #t)))))))))
                   
       ; kick it off, using passing in a ref to the assignements vector, which will get filled
-      (let* ((result (recursive-search #t 0)))
+      (let* ((result (recursive-search 0)))
         (cond
           (result
             (post "SOLVED, notes:" (_ :note-assignments))
@@ -302,7 +322,7 @@
   (csp 'add-constraint target-root? '(4) 'target-root)
   (csp 'add-global-constraint (diff? '(0 1 2)))
   (csp 'add-global-constraint (intv-under? 'maj-3))
-  (csp 'add-global-constraint target-from-neighbour?)
+  (csp 'add-global-constraint target-from-cn?)
 )  
 
 (define csp (make-csp 5))
