@@ -53,6 +53,11 @@ access to the values in the let. The returned function acts as the object, and m
 symbolic messages, which are dispatched to similarly named functions with the local scope.
 By implementing the solver as a self-contained object, the user of the solver must thus only load the code defining the CSP solver
 builder function and any musical library functions used to build constraints.
+This also simplifies some of the implementation details for the search algorithm as the search
+function can have direct access to local state that we use for variables and domains, while
+still insulating these from client code.
+
+A simple example of the object structure is shown below:
 
 .. code-block:: scheme
 
@@ -81,11 +86,12 @@ builder function and any musical library functions used to build constraints.
   (my-obj 'set-var :var-2 (my-obj 'get 'var-1))
 
 
-The solver is set up via an explicit initialization method, allowing the same solver to be reused for subsequent
-bars by setting only the values that need to change for each bar by reinitializing the solver object.
+The solver is set up via an explicit initialization method which restores domains for variables
+and resets the variable assignments to null, allowing the same solver to be reused for subsequent
+bars by reinitializing and setting only the values that need to change for each bar (i.e. chord).
 
 Constraints are added via a registration function that accepts a predicate function, the variable over which it runs,
-and a symbolic name. Global constraints are similarly added, but are assumed to have access to all notes.
+and a symbolic name. Global constraints are similarly added but are assumed to have access to all notes.
 
 The solver's **solve** method runs the solver, both returning a list of symbolic notes
 and updating the internal store of the notes.
@@ -97,7 +103,7 @@ High-level Implementation of the Solver
 The solver contains two kinds of domain variables: note variables and context variables.
 
 Notes are stored in a list and are assumed to be empty prior to solving, though they are not necessarily so.
-The domain of note variables is separately maintained in local state, and is set up during initialization
+The domain of note variables is separately maintained in local state and is set up during initialization
 to contain MIDI note names across a pre-determined range (e.g., C0 to B5). 
 The number of note variables is determined by an argument to the object builder, 
 and the problem is considered to be solved when values have been successfully assigned to 
@@ -140,7 +146,7 @@ The context variables used by the solver are the following:
 
 Initialization prior to solving for a bar thus consists of passing a hash-table
 of context variables to the **init** method, which will copy values into the local
-context state, and initialize the note variables to empty.
+context state and initialize the note variables to empty.
   
 .. code-block:: scheme
 
@@ -190,7 +196,7 @@ but the structure of the library is such that this can be easily extended
 to include all symbolic note names.
 
 Where possible, conversion functions are implemented to use hash-tables as a form
-of caching, thus avoiding unecessary calculation during constraint execution, which
+of caching, thus avoiding unnecessary computation during constraint execution, which
 may run many times for a solve pass. Some of the conversion functions and hash-tables
 (both are used identically in Scheme) are prepopulated in static code, while others are
 populated dynamically when the helper library is imported.
@@ -219,7 +225,7 @@ to the Scheme convention in which "->" indicates a type conversion.
 The names use the component names listed above, with hyphens and plurals
 used to indicate that a list is used for input or output. 
 
-The conversions functions provided are:
+The conversion functions provided are:
 
   * pitch->int
   * int->pitch
@@ -244,7 +250,7 @@ Local Constraints
 Constraints are implemented as boolean predicate functions with standard arguments
 that give the predicate access to the solver's state (and thus context).
 Local constaints are passed a reference to the solver object; an integer corresponding
-the index of the note variable; and the value being tested as a MIDI note symbol. 
+to the index of the note variable; and the value being tested as a MIDI note symbol. 
 
 .. code-block:: scheme
 
@@ -280,8 +286,9 @@ implement higher-level functions that build constraint functions.
     (lambda (csp var val) (is-chord-factor? csp var val 1))
     '(1) 'is-third)
 
-During the solve process, the solver user the **get-applicable-constraints** method
-to find all local constraints that can be run on a given assignment pass for a variable, 
+
+During the solve process, the solver uses the **get-applicable-constraints** method
+to find all local constraints that can be run on a given assignment pass for a variable 
 and runs them prior to the assignment of a value to a note variable.
 
 Global Constraints
@@ -301,7 +308,7 @@ constraints for the user of the solver.)
 In the example below, we have a constraint to check if the last note of the bar is a chromatic
 neighbour of the following target note. 
 The constraint passes if we are missing any of the necessary domain variables 
-(because running it at that point is meaningless),
+(because running it at that point is meaningless and should not indicate a failure),
 and checks the relationship between the fourth and fifth note if we have them.
 
 .. code-block:: scheme
@@ -322,9 +329,10 @@ With the current implementation, one could thus implement a brute-force solver u
 
 The library of constraints includes an imperative implementation of all-diff, as well
 as a more specific implementation that accepts a list of notes which must be different.
-This was necessary for the test program, for example, as the chromatic neighbour
+This was necessary for the test program as the chromatic neighbour
 of a target root may or may not be already in the chord. We thus need a way to specify, 
-*"all notes should be different, unless the duplicated note is the chromatic neighbour as note 4"*.
+*"all notes should be different unless the duplicated note is note 4 functioning as a 
+chromatic neighbour to the following (target) note"*.
 
 .. code-block:: scheme
 
@@ -359,14 +367,14 @@ Constraints for the Test Problem
 --------------------------------
 Given the above constraints, we have all that we need to specify an arpeggiated bass line
 that always leads chromatically into the next chord.
-Our rules are:
+Our constraints are:
 
   * The first note must be the root of the chord
-  * The second and third notes must in the chord
+  * The second and third notes must be in the chord
   * None of the first three notes may be the same
   * Adjacent notes are under a major 3rd apart
   * The final note is the root of the target chord
-  * The penultimate note is a chromatic neighbour of the target
+  * The penultimate note is a chromatic neighbour of the final note
 
 In the test program, this is implemented as a function to add these constraints.
 
@@ -393,8 +401,8 @@ as this is in the scope of the function-object. In the current implementation,
 the depth variable – which corresponds also to the index of the solved note – 
 is not strictly necessary, as the solver has access to the notes list in local
 state. However, I added this both as an aid to debugging and because I expect
-I may need for some future features, such as domain change rewinding where we
-may need to keep track of where we are in the tree of state traversal.
+I may want it for some future features, such as domain change rewinding where we
+may need to keep track of where we are in the tree of state-space traversed.
 
 .. code-block:: scheme
 
@@ -493,9 +501,9 @@ the assigned note is unassigned (set back to false), and the domain value loop c
                         #t)))))))))
 
 
-In the case that a solution is found, the enclosing method, **solve** returns
-the note assignments in addition to the side effect of having the local note assignment
-list populated, this to simplify using the object.
+In the case that a solution is found, the enclosing method returns
+the note assignments as a list, in addition to having the side effect of populating the local note assignment
+list, this to simplify using the object.
 In the event of failure, it returns false.
 
 The complete implementation of the backtracking search is shown below:
@@ -550,6 +558,13 @@ The complete implementation of the backtracking search is shown below:
 Limitations 
 ------------
 
+Musical Assumptions
+^^^^^^^^^^^^^^^^^^^^
+The current implementation assumes that there is only one chord per bar and that
+we have a set number of notes per bar that remains the same.
+Rules for two-beat chords have not been implemented and the rules stay the same for each bar
+in the test program.
+
 Propagation
 ^^^^^^^^^^^
 
@@ -560,14 +575,14 @@ and if all fail, it will backtrack up a depth. There is no implementation of pru
 and undoing a prune when backtracking up a level. 
 I did develop code to build a tree representation of all paths that have been explored,
 with double-linked nodes such that paths from a node can be traversed up or down the tree. 
-This structure could be used to store domain changes from visting and assigning a node, which could be used
+This structure could be used to store domain changes from visiting and assigning a node, which could be used
 to undo domain pruning when backtracking. 
 However, time constraints (ha!) prevented me from incorporating this into the current implementation.
 
 The tree-walker is shown below. Nodes are implemented as Scheme hash-tables that
 store the value for the note, the depth, a link to the parent, and reference to the 
 children as a list of hash-table notes. With this structure, one can
-get the list of values set so far by walking up the tree from any node, rather
+get the list of values set so far by walking up the tree from any node rather
 than relying on pseudo-global state, as was the case in the CSP object.
 
 .. code-block:: scheme
@@ -628,11 +643,11 @@ There are a number of areas of future work I intend to explore.
 
 Constraint Propagation
 ^^^^^^^^^^^^^^^^^^^^^^
-As discussed above, the lack of constraint propagation is the the first major deficiency.
+As discussed above, the lack of constraint propagation is the first major deficiency.
 Constraint propagation will significantly speed up execution, though execution time
 does not seem to be much of an issue even with the current implementation. This
-could be an issue however for solving longer lines, as the state space over
-five octaves will grow exponentially at powers of 60.
+could be an issue, however, for solving longer lines, as with a range of five octaves,
+the maxium state space will grow exponentially at powers of 60 with each note.
 
 Advanced Pruning
 ^^^^^^^^^^^^^^^^^
@@ -648,8 +663,8 @@ Assignment
 ^^^^^^^^^^
 Notes are assigned one at a time, but this is not an ideal heuristic for simulating
 how musicians think. For example, when playing a bass line, a musician is likely
-to think *"I can walk stepwise or arpeggiate"*, determining which based on available range
-and what they have recently done, and evaluating whether several candidates will work 
+to think, *"I can walk stepwise or arpeggiate"*, determining which based on available range
+and what they have recently done and evaluating whether several candidates will work 
 at one time. The solver could draw from a bank of patterns to try various compound
 selections first rather than brute force traversal through all paths of the state space.
 
@@ -670,7 +685,7 @@ again allow a much more succint and readable API for users of the solver.
 Stochastic Heuristics
 ^^^^^^^^^^^^^^^^^^^^^^
 When choosing the next candidate domain value, the current implementation either
-takes the next one, or a random value. The addition of preference constraints
+takes the next one from the list of domain values or a random value. The addition of preference constraints
 to help choose candidates in more musically meaningful ways would be a fruitful 
 area to explore. This could potentially allow one to implement preference rules
 such as *"if the last three notes have ascended, increase the probability of 
@@ -689,7 +704,7 @@ For example, one can read the set of constraint registrations to make an
 arpeggiated bass line and understand right away what the outcome is intended to be.
 
 Breaking up the constraints into (solved) notes and (pre-assigned) context variables is 
-also successful, and makes domain specific problems much easier to reason about (and
+also successful and makes domain specific problems much easier to reason about (and
 to design constraints for) than would be the case with purely numerical variables that
 make no destinction between musical context and the line. It is also more reflective of
 how improvisers and composers think of the problem in homophonic improvised music: 
@@ -699,7 +714,7 @@ a style-imitation program designed this way would use different constraints for
 different eras of jazz music as the melodic and harmonic vocabulary changed over time.
 
 The project runs well in Scheme for Max and, I believe, has the potential to be
-a valuable contribution to the available offerings for computer assisted composition 
+a valuable contribution to the available offerings for computer-assisted composition 
 in the Max environment, such as the Bach project. I intend to continue to work
 on the project, with the intent of publishing more complete versions as part
 of the Scheme for Max project.
