@@ -55,11 +55,12 @@
     
 (define (target-root? csp var val)
   "pass if pitch is the root of the target"
-  ;(post "(target-root?)" val)
+  ;(post "(target-root?) checking val:" val)
   (let* ((key (csp 'get-var 'tonic))
          (target-rnum (csp 'get-var 'target))
          (target-pitch (root-pitch key target-rnum))
          (res (enh-eq? target-pitch (note->pitch val))))
+    ;(post "  key:" key "target-rnum:" target-rnum) 
     ;(post "  target-pitch:" target-pitch "res:" res)
     res))       
 
@@ -84,7 +85,7 @@
 ; diff is like all-diff but takes list of note vars
 (define (diff? note-var-list)
   (lambda (csp notes)
-    (post "diff? note-var-list" note-var-list "notes" notes) 
+    ;(post "diff? note-var-list" note-var-list "notes" notes) 
     (let ((len   (length notes))
           (pass  #t))
       (do ((i 0 (+ 1 i))) ((= i len))

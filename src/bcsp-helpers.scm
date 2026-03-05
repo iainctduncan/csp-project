@@ -1,6 +1,6 @@
 ; music calculation functions
 
-(define *num-octaves* 6)
+(define *num-octaves* 2)
 
 (define *pitches*
   '(C Db D Eb E F Gb G Ab A Bb B))

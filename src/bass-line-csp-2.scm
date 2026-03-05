@@ -1,8 +1,9 @@
 ; csp-1 a brute force backtracking search to arpeggiate chords
-(post "bass-line-csp.scm loading")
+(post "bass-line-csp-2.scm loading")
 (load-from-max "stuff.scm")
 (load-from-max "bcsp-helpers.scm")
 (load-from-max "bcsp-constraints.scm")
+(load-from-max "search-tree.scm")
 (define (s4m-reset) (delay 100 (lambda()(send 'reset 'bang))))
 
 ; readability helpers
@@ -17,6 +18,11 @@
 
 ; for debugging access
 (define __ #f)
+
+(define *debug* 1)
+(define (logger . args)
+  (if (= *debug* 1) 
+    (apply post args)))
 
 ;*********************************************************************************
 ; message-based csp object
@@ -42,9 +48,12 @@
             :g-constraints '()
             ; registry of ids by var, keys are the var token, vals the list of constraints
             :constraints-for-var  (hash-table)
+
+            :search-tree  '() ; will hold the search-tree
             )))    
 
     ; explicit init for setting the pre-assinged vars
+    ; XXX: don't love this self-ref argument....
     (define (init self-ref pre-assignments)
       (post "(csp::init) pre-assignments:" pre-assignments)
       (set! self self-ref) ; hacky, figure out better way later - macros?
@@ -66,6 +75,12 @@
       (set! __ _)
       (post " - csp initialized"))
 
+
+    (define (init-search-tree)
+      (set! (_ :search-tree) (make-search-tree))
+      ; return it for top level debugging
+      (_ :search-tree))
+
     (define (pre-assign pre-assignments-ht)
       "pre-assign a value to a var, also reducing the vars domain"
       ;(post "(csp::pre-assign) ht: " pre-assignments-ht)
@@ -82,7 +97,6 @@
 
     (define (get-domain-values var)
       ; TODO add some shuffling so we get a new result on each search 
-      ; (_ :domains) is filled with all possible notes by the init function
       (_ :domains var))
 
     (define (get-random-domain-value var)
@@ -174,15 +188,18 @@
        (let* ((c-ids   (get-applicable-constraints var))
               (c-preds (map (lambda (id)(_ :constraints id :predicate)) c-ids)))
          ;(post "  - constraint ids:" c-ids "c-preds:" c-preds)
-         (let test-loop ((v val) (cp-list c-preds))
+         (let test-loop ((v val) (cp-list c-preds) (cid-list c-ids))
            (cond 
              ((null? cp-list) ; got through list ok, return value as it passes
                v)
              ; case getting and testing pred passes, recur to next pred
              (((car cp-list) self var v)  
-               (test-loop v (cdr cp-list)))
+               (test-loop v (cdr cp-list) (cdr cid-list)))
              (else             ; testing pred returned false, done and return false
-               #f)))))
+               (begin 
+                 ;(logger "constraint" (car cid-list) "failed on var:" var "value:" v) 
+                 ;(logger "  - assigned values" (_ :note-assignments))
+                #f))))))
    
     (define (check-global-constraints)
       "check the constraints that run all the time, true on success, stop on first fail"
@@ -205,7 +222,9 @@
       (let rloop ((i 0))
         (cond
           ((= i (length (_ :note-assignments))) #t)
-          ((false? (_ :note-assignments i)) #f)
+          ((false? (_ :note-assignments i)) 
+            (post "all-notes-assinged returning #f" (_ :note-assignments))
+            #f)
           (else (rloop (+ 1 i))))))
 
     (define (assign-if-valid var val)
@@ -245,52 +264,75 @@
       (if (> (length args) 0)
         (pre-assign (args 0)))
       (post "SOLVING")
-      (post "csp::(solve) ctx:" (_ :cxt-assignments) "notes:" (_ :note-assignments))
-      
-      (define (recursive-search depth)
+      (post "top csp::(solve) ctx:" (_ :cxt-assignments) "notes:" (_ :note-assignments))
+     
+      ; TREE make root note here so its in scope of (recursive-search)
+      (define search-tree (make-search-tree))
+      (define root-node (search-tree 'get-root))
+      ; provide top level access for debugging
+      (if *debug* (begin
+        (post "attaching tree to rootlet")
+        (varlet (rootlet) 'st search-tree)
+        (varlet (rootlet) 'str root-node)))
+
+      ; recursive-search does not need be passed or return tree as
+      ; its in enclosing scope and there is only one
+      (define (recursive-search parent-node depth)
         ;if assignment complete, we are done return assignment
         ;(post "")
         (post "csp::solve::(search) depth:" depth "notes:" (_ :note-assignments))
-        (cond 
-          ; case done, vector of 4 notes filled, return success
-          ; executes when we get to the bottom of recursing down
-          ((all-notes-assigned?)
-             (post "  - all note assigned, returning #t up stack")
-             #t)
-          ; else we still have notes to fill
-          (else
-            ; get the next var to fill, var will be an integer
-            (let ((var (select-var)))
-              ; iterate through domain values for i
-              (let* domain-val-loop ((vals (get-domain-values var)))
-                (post "domain-val-loop: candidate domain-vals:" (length vals) vals)
-                (if (null? vals)
-                  ; case ran out of domain vals, return failure back up
-                  (begin
-                    (post " - out of possible domain values, return #f up stack")
-                    #f)
-                  ; else, try assigning the val, check constraints we can run so far
-                  (let ((passed (assign-if-valid var (first vals))))
-                    (cond
-                      ; didn't pass precheck, on to next possible domain value
-                      ((not passed) 
-                        (domain-val-loop (cdr vals)))
-                      ; passed precheck, failed globals: unset and continue domain val loop 
-                      ((not (check-global-constraints))
-                        (set! (_ :note-assignments var) #f)
-                        (domain-val-loop (cdr vals)))
-                      ; passed everything, found value, recurse onwards
-                      ; if recursing fails, unset var and continue looking
-                      ((not (recursive-search (+ 1 depth)))
-                        (set! (_ :note-assignments var) #f)
-                        (domain-val-loop (cdr vals)))
-                      (else
-                        ; the call to recursive-search above passed
-                        (post " - found passing domain val:" passed "for depth" depth "returning #t")
-                        #t)))))))))
+        
+        ; on first call to search, parent will be #f
+        (let ((this-node (search-tree 'add-node parent-node)))
+          (cond 
+            ; case done, vector of 4 notes filled, return success
+            ; executes when we get to the bottom of recuring down
+            ((all-notes-assigned?)
+               (post "  - all note assigned, returning #t up stack")
+               #t)
+            ; else we still have notes to fill
+            (else
+              ; get the next var to fill
+              (let ((var (select-var)))
+                (post "  - next var:" var)
+                ; TODO: init domain vals for node, copies all values into the search tree
+                (search-tree 'init-node-domain this-node (get-domain-values var))
+                ; iterate through domain values for i
+                ;(let* domain-val-loop ((vals (get-domain-values var)))
+                (let* domain-val-loop ((candidate (search-tree 'get-domain-value this-node)))
+                  (post "domain-val-loop: checking candidate:" candidate)
+                  (if (false? candidate)
+                    ; case ran out of domain vals, return failure back up
+                    (begin
+                      (post " - out of possible domain values, return #f up stack")
+                      #f)
+                    ; else, try assigning the val, check constraints we can run so far
+                    (let* ((value-or-fail (assign-if-valid var candidate)))
+                      (cond
+                        ; didn't pass precheck, on to next possible domain value
+                        ((not value-or-fail) 
+                          (logger " - val" candidate "failed prechecks")
+                          ;(domain-val-loop (cdr vals)))
+                          ; loop back with next value
+                          (domain-val-loop (search-tree 'get-domain-value this-node)))
+                        ; passed precheck, failed globals: unset and continue domain val loop 
+                        ((not (check-global-constraints))
+                          (logger " - val" candidate "failed global-constraints, unsetting")
+                          (set! (_ :note-assignments var) #f)
+                          ;(domain-val-loop (cdr vals)))
+                          (domain-val-loop (search-tree 'get-domain-value this-node)))
+                        ; passed everything, found value, recurse onwards down
+                        ; if recursing fails, unset var and continue looking
+                        ((not (recursive-search this-node (+ 1 depth)))
+                          (set! (_ :note-assignments var) #f)
+                          ;(domain-val-loop (cdr vals)))
+                          (domain-val-loop (search-tree 'get-domain-value this-node)))
+                        (else
+                          (post " - found passing domain val:" candidate "for depth" depth "returning #t")
+                          #t)))))))))); end inner recursive-search function
                   
-      ; kick it off, using passing in a ref to the assignements vector, which will get filled
-      (let* ((result (recursive-search 0)))
+      ; kick it off, using passing in a ref to the assignments vector, which will get filled
+      (let* ((result (recursive-search root-node 0)))
         (cond
           (result
             (post "solved, notes:" (_ :note-assignments))
@@ -317,63 +359,45 @@
 ;(load-from-max "csp-1-tests.scm")
 ;(run-tests)
 
-(post "bass-line-csp.scm loaded")
+(post "bass-line-csp-2.scm loaded")
 
+;(define chord-prog '((II Min7) (V Dom7) (I Maj7) (I Maj7)))
 
 (define (add-constraints csp)
-  ;(csp 'add-constraint is-tonic? '(tonic 0) 'is-tonic)
+  ; args: predicate, vars over, id
+  (csp 'add-constraint is-tonic? '(tonic 0) 'is-tonic)
   (csp 'add-constraint chord-root? '(0)  'n0-root)
   (csp 'add-constraint in-chord? '(1) 'in-chord-1)
   (csp 'add-constraint in-chord? '(2) 'in-chord-2)
+  (csp 'add-constraint in-chord? '(3) 'in-chord-3)
   (csp 'add-constraint target-root? '(4) 'target-root)
   (csp 'add-global-constraint (diff? '(0 1 2)))
   (csp 'add-global-constraint (intv-under? 'maj-3))
-  (csp 'add-global-constraint target-from-cn?)
+  ;(csp 'add-global-constraint target-from-cn?)
 )  
 
-(define csp (make-csp 5))
 
-(define chord-prog '((II Min7) (V Dom7) (I Maj7) (I Maj7)))
-;(define chord-prog '((II Min7) (V Dom7) (I Maj7) (I Maj7)))
+; defining at top level for debug access
+(define num-notes 5)
+(define csp (make-csp num-notes))
+(define csp-vals (hash-table  
+  'tonic 'C  'tonality 'major  'root 'I  
+  'quality 'Maj7  'target 'I
+  ; uncomment to preassign
+  ;0 'C1   1 'B0   2 'G0  3 'E0
+  ))
+(add-constraints csp)
 
-; function to build four per bar bass line over a prog
-(define (bass-line chord-prog tonic tonality)
-  (post "(bass-line)" tonic tonality chord-prog)
+; top level var for the search tree
+(define st #f)
 
-  (let* ((csp-base (hash-table 'tonic tonic 'tonality tonality))
-         (notes-per-bar 4)
-         (num-bars (length chord-prog))
-         (start-on 'D1)
-         (line (make-vector (* notes-per-bar num-bars) #f))) 
-    (add-constraints csp)
-   
-    ;(dotimes (b-num num-bars)
-    (let solve-loop ((b-num 0) (first-note start-on))
-      (post "solve-loop line for bar:" (chord-prog b-num) "start on:" first-note )
-      (let* ((next-b-num (+ 1 b-num))
-             (this-chord (chord-prog b-num))
-             (rnum (this-chord 0))
-             (qual (this-chord 1))
-             (next-chord (if (< next-b-num num-bars) (chord-prog next-b-num) #f))
-             (csp-vals (hash-table 'root rnum 'quality qual
-                          'target (if next-chord (next-chord 0) #f)))
-             (noop (csp 'init csp (append csp-base csp-vals)))
-             (noop (csp 'assign-if-valid 0 first-note))
-             (notes-out (csp 'solve)))
-        (post "  - notes-out" notes-out)
-        ; copy over the notes from the solver
-        (dotimes (i notes-per-bar)
-          (set! (line (+ (* b-num notes-per-bar) i)) (notes-out i)))
-        ;(post "  copied notes, line now: " line)  
-        ;(post "  next-start note:" (notes-out notes-per-bar))
-        ; set starting note for next bar
-        (if (< b-num (- num-bars 1))
-          (solve-loop (+ 1 b-num) (notes-out notes-per-bar)))))
+; function to build one bar of notes for testing
+(define (run starting-note)
+  (post "(run) solving one bar")
+  (set! *debug* 1)
+  (csp 'init csp csp-vals)
+  (csp 'assign-if-valid 0 starting-note)
+  (set! st (csp 'init-search-tree))
+  (csp 'solve )
+)          
 
-    (post "OUTPUT:" line)
-    ;(dotimes (i (length line)) (post (line i)))
-    ))          
-
-
-(define (run)
-  (bass-line chord-prog 'D 'major))
